@@ -3,3 +3,4 @@ checkpoints
 .git.back
 correlation_cuda.egg-info
 pretrained
+results_for_paper
