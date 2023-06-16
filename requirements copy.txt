@@ -1,0 +1,12 @@
+scikit_image
+pandas
+h5py
+matplotlib
+scipy
+pyquaternion
+opencv-python
+pykitti
+numpy
+tensorboardX
+Pillow
+scikit-image
