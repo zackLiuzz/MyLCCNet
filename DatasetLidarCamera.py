@@ -49,9 +49,9 @@ class DatasetLidarCameraKittiOdometry(Dataset):
         self.suf = suf
 
         self.all_files = []
-        # self.sequence_list = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10',
-        #                       '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21']
-        self.sequence_list = ['00', '01', '21'] # zack
+        self.sequence_list = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10',
+                              '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21']
+        # self.sequence_list = ['00', '01', '21'] # zack
         # self.model = CameraModel()
         # self.model.focal_length = [7.18856e+02, 7.18856e+02]
         # self.model.principal_point = [6.071928e+02, 1.852157e+02]

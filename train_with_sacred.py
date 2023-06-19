@@ -55,12 +55,12 @@ def config():
     data_folder = '/home/liuzhongze/Downloads/kitti/dataset/'
     use_reflectance = False
     val_sequence = 0
-    epochs = 1
+    epochs = 120
     BASE_LEARNING_RATE = 3e-4  # 1e-4
     loss = 'combined'
-    max_t = 0.1 # 1.5, 1.0,  0.5,  0.2,  0.1
-    max_r = 1. # 20.0, 10.0, 5.0,  2.0,  1.0
-    batch_size = 20  # 120
+    max_t = 1.5 # 1.5, 1.0,  0.5,  0.2,  0.1
+    max_r = 20.0 # 20.0, 10.0, 5.0,  2.0,  1.0
+    batch_size = 40  # 120
     num_worker = 6
     network = 'Res_f1'
     optimizer = 'adam'
