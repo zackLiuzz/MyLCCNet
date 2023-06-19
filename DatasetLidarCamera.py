@@ -56,10 +56,10 @@ class DatasetLidarCameraKittiOdometry(Dataset):
         # self.model.focal_length = [7.18856e+02, 7.18856e+02]
         # self.model.principal_point = [6.071928e+02, 1.852157e+02]
         # for seq in ['00', '03', '05', '06', '07', '08', '09']:
-        for seq in self.sequence_list:
+        for seq in self.sequence_list: # 对于每一组数据
             odom = odometry(self.root_dir, seq)
             calib = odom.calib
-            T_cam02_velo_np = calib.T_cam2_velo #gt pose from cam02 to velo_lidar (T_cam02_velo: 4x4)
+            T_cam02_velo_np = calib.T_cam2_velo #gt pose from cam02 to velo_lidar (T_cam02_velo: 4x4) # T_cam02_velo_np * lidar 就将lidar点云转移到了相机系下
             self.K[seq] = calib.K_cam2 # 3x3
             # T_cam02_velo = torch.from_numpy(T_cam02_velo_np)
             # GT_R = quaternion_from_matrix(T_cam02_velo[:3, :3])
@@ -80,7 +80,7 @@ class DatasetLidarCameraKittiOdometry(Dataset):
                     continue
                 if seq == val_sequence:
                     if split.startswith('val') or split == 'test':
-                        self.all_files.append(os.path.join(seq, image_name.split('.')[0]))
+                        self.all_files.append(os.path.join(seq, image_name.split('.')[0])) # 加入评价数据集中的每一个图片
                 elif (not seq == val_sequence) and split == 'train':
                     self.all_files.append(os.path.join(seq, image_name.split('.')[0]))
 
@@ -110,7 +110,7 @@ class DatasetLidarCameraKittiOdometry(Dataset):
                     transl_z = np.random.uniform(-max_t, max_t)
                     # transl_z = np.random.uniform(-max_t, min(max_t, 1.))
                     val_RT_file.writerow([i, transl_x, transl_y, transl_z,
-                                           rotx, roty, rotz])
+                                           rotx, roty, rotz]) # 每一帧图像旋转一个角度，坐标系定义rdf.
                     self.val_RT.append([float(i), float(transl_x), float(transl_y), float(transl_z),
                                          float(rotx), float(roty), float(rotz)])
 
@@ -121,16 +121,19 @@ class DatasetLidarCameraKittiOdometry(Dataset):
 
     def custom_transform(self, rgb, img_rotation=0., flip=False):
         to_tensor = transforms.ToTensor()
+        #简单来说就是将数据按通道进行计算，将每一个通道的数据先计算出其方差与均值，然后再将其每一个通道内的每一个数据减去均值，再除以方差，得到归一化后的结果。
+        #标准化处理之后，可以使数据更好的响应激活函数，提高数据的表现力，减少梯度爆炸和梯度消失的出现。
+        #mean=(0.485, 0.456, 0.406)，std=(0.229, 0.224, 0.225)，因为这是在百万张图像上计算而得的，所以我们通常见到在训练过程中使用它们做标准化。而对于特定的数据集，选择这个值的结果可能并不理想。
         normalization = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                              std=[0.229, 0.224, 0.225])
 
         #rgb = crop(rgb)
         if self.split == 'train':
-            color_transform = transforms.ColorJitter(0.1, 0.1, 0.1)
+            color_transform = transforms.ColorJitter(0.1, 0.1, 0.1) # 图像增强相关，亮度，对比图，饱和度在原图基础上随机变化10%
             rgb = color_transform(rgb)
             if flip:
-                rgb = TTF.hflip(rgb)
-            rgb = TTF.rotate(rgb, img_rotation)
+                rgb = TTF.hflip(rgb) # 水平翻转
+            rgb = TTF.rotate(rgb, img_rotation) # 旋转角度img_rotation，deg
             #io.imshow(np.array(rgb))
             #io.show()
 
@@ -139,20 +142,20 @@ class DatasetLidarCameraKittiOdometry(Dataset):
         return rgb
 
     def __len__(self):
-        return len(self.all_files)
+        return len(self.all_files) # 返回所有图片的数量
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx): # 重载获取一个图片的方法，即获取一个item的方法
         item = self.all_files[idx]
         seq = str(item.split('/')[0])
         rgb_name = str(item.split('/')[1])
         img_path = os.path.join(self.root_dir, 'sequences', seq, 'image_2', rgb_name+self.suf)
         lidar_path = os.path.join(self.root_dir, 'sequences', seq, 'velodyne', rgb_name+'.bin')
-        lidar_scan = np.fromfile(lidar_path, dtype=np.float32)
-        pc = lidar_scan.reshape((-1, 4))
-        valid_indices = pc[:, 0] < -3.
+        lidar_scan = np.fromfile(lidar_path, dtype=np.float32) # 以numpy格式获取一帧lidar数据
+        pc = lidar_scan.reshape((-1, 4)) # 将数组转换成n行4列， 即 x y z intensity
+        valid_indices = pc[:, 0] < -3. # 去除车体周围九平方米的点云
         valid_indices = valid_indices | (pc[:, 0] > 3.)
         valid_indices = valid_indices | (pc[:, 1] < -3.)
-        valid_indices = valid_indices | (pc[:, 1] > 3.)
+        valid_indices = valid_indices | (pc[:, 1] > 3.) 
         pc = pc[valid_indices].copy()
         pc_org = torch.from_numpy(pc.astype(np.float32))
         # if self.use_reflectance:
@@ -162,17 +165,17 @@ class DatasetLidarCameraKittiOdometry(Dataset):
         RT = self.GTs_T_cam02_velo[seq].astype(np.float32)
 
         if pc_org.shape[1] == 4 or pc_org.shape[1] == 3:
-            pc_org = pc_org.t()
+            pc_org = pc_org.t() # 转为3/4行， n列
         if pc_org.shape[0] == 3:
-            homogeneous = torch.ones(pc_org.shape[1]).unsqueeze(0)
-            pc_org = torch.cat((pc_org, homogeneous), 0)
+            homogeneous = torch.ones(pc_org.shape[1]).unsqueeze(0) # 生成一行n列，即[1,1,1,1,n个,1,1,1]
+            pc_org = torch.cat((pc_org, homogeneous), 0) # 增加一行
         elif pc_org.shape[0] == 4:
-            if not torch.all(pc_org[3, :] == 1.):
+            if not torch.all(pc_org[3, :] == 1.): # 第4行置为1
                 pc_org[3, :] = 1.
         else:
             raise TypeError("Wrong PointCloud shape")
         
-        pc_rot = np.matmul(RT, pc_org.numpy())
+        pc_rot = np.matmul(RT, pc_org.numpy()) # 根据真值转到了相机系
         pc_rot = pc_rot.astype(np.float32).copy()
         pc_in = torch.from_numpy(pc_rot)
 
@@ -196,7 +199,7 @@ class DatasetLidarCameraKittiOdometry(Dataset):
         #     h_mirror = True
         #     pc_in[1, :] *= -1
 
-        img = Image.open(img_path)
+        img = Image.open(img_path) # shape 是 C H W
         # img = cv2.imread(img_path)
         img_rotation = 0.
         # if self.split == 'train':
@@ -223,7 +226,7 @@ class DatasetLidarCameraKittiOdometry(Dataset):
             transl_z = np.random.uniform(-self.max_t, self.max_t)
             # transl_z = np.random.uniform(-self.max_t, min(self.max_t, 1.))
         else:
-            initial_RT = self.val_RT[idx]
+            initial_RT = self.val_RT[idx] # 人工旋转，该值置为标定的真值，即标签
             rotz = initial_RT[6]
             roty = initial_RT[5]
             rotx = initial_RT[4]
@@ -382,17 +385,17 @@ class DatasetLidarCameraKittiRaw(Dataset):
         return rgb
 
     def __len__(self):
-        return len(self.all_files)
+        return len(self.all_files) 
 
     # self.all_files.append(os.path.join(date, seq, 'image_2/data', image_name.split('.')[0]))
-    def __getitem__(self, idx):
+    def __getitem__(self, idx): 
         item = self.all_files[idx]
         date = str(item.split('/')[0])
         seq = str(item.split('/')[1])
         rgb_name = str(item.split('/')[4])
         img_path = os.path.join(self.root_dir, date, seq, 'image_02/data', rgb_name+'.jpg') # png
         lidar_path = os.path.join(self.root_dir, date, seq, 'velodyne_points/data', rgb_name+'.bin')
-        lidar_scan = np.fromfile(lidar_path, dtype=np.float32)
+        lidar_scan = np.fromfile(lidar_path, dtype=np.float32) 
         pc = lidar_scan.reshape((-1, 4))
         valid_indices = pc[:, 0] < -3.
         valid_indices = valid_indices | (pc[:, 0] > 3.)

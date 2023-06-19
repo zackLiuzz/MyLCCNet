@@ -69,4 +69,4 @@ def quaternion_distance(q, r, device):
         torch.Tensor: shape=[N]
     """
     t = quatmultiply(q, quatinv(r), device)
-    return 2 * torch.atan2(torch.norm(t[:, 1:], dim=1), torch.abs(t[:, 0]))
+    return 2 * torch.atan2(torch.norm(t[:, 1:], dim=1), torch.abs(t[:, 0])) # 计算结果为轴角中的角度值

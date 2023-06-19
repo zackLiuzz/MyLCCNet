@@ -120,7 +120,7 @@ def merge_inputs(queries):
     imgs = []
     reflectances = []
     returns = {key: default_collate([d[key] for d in queries]) for key in queries[0]
-               if key != 'point_cloud' and key != 'rgb' and key != 'reflectance'}
+               if key != 'point_cloud' and key != 'rgb' and key != 'reflectance'} # 将其他key转换成字典,default_collate的作用是把数据转为tensor。
     for input in queries:
         point_clouds.append(input['point_cloud'])
         imgs.append(input['rgb'])
@@ -273,10 +273,10 @@ def overlay_imgs(rgb, lidar, idx=0):
     rgb = rgb*std+mean
     lidar = lidar.clone()
 
-    lidar[lidar == 0] = 1000.
+    lidar[lidar == 0] = 1000. # 深度为0的地方赋值为1000
     lidar = -lidar
     #lidar = F.max_pool2d(lidar, 3, 1, 1)
-    lidar = F.max_pool2d(lidar, 3, 1, 1)
+    lidar = F.max_pool2d(lidar, 3, 1, 1) # 最大值pooling， 由于前边取负值，所以相当于优先于取最近的值
     lidar = -lidar
     lidar[lidar == 1000.] = 0.
 
@@ -285,10 +285,10 @@ def overlay_imgs(rgb, lidar, idx=0):
     lidar = (lidar*255).int().cpu().numpy()
     lidar_color = cm.jet(lidar)
     lidar_color[:, :, 3] = 0.5
-    lidar_color[lidar == 0] = [0, 0, 0, 0]
+    lidar_color[lidar == 0] = [0, 0, 0, 0] # 深度为0的地方alpha == 0， 即透明
     blended_img = lidar_color[:, :, :3] * (np.expand_dims(lidar_color[:, :, 3], 2)) + \
                   rgb * (1. - np.expand_dims(lidar_color[:, :, 3], 2))
-    blended_img = blended_img.clip(min=0., max=1.)
+    blended_img = blended_img.clip(min=0., max=1.) # 限制到0-1，得到融合后的图像
     #io.imshow(blended_img)
     #io.show()
     #plt.figure()

@@ -28,6 +28,7 @@ from sacred import Experiment
 from sacred.utils import apply_backspaces_and_linefeeds
 from sacred import SETTINGS
 SETTINGS.CONFIG.READ_ONLY_CONFIG = False
+SETTINGS.CAPTURE_MODE = 'sys' 
 from skimage import io
 from tqdm import tqdm
 import time
@@ -51,7 +52,7 @@ from torchvision import transforms
 
 # import matplotlib
 # matplotlib.rc("font",family='AR PL UMing CN')
-plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['axes.unicode_minus'] = False # 不显示字符
 # plt.rc('font',family='Times New Roman')
 font_EN = {'family': 'Times New Roman', 'weight': 'normal', 'size': 16}
 font_CN = {'family': 'AR PL UMing CN', 'weight': 'normal', 'size': 16}
@@ -60,14 +61,14 @@ plt_size = 10.5
 ex = Experiment("LCCNet-evaluate-iterative")
 ex.captured_out_filter = apply_backspaces_and_linefeeds
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0' # 设置对该程序可见的gpu 设备。
 
 # noinspection PyUnusedLocal
 @ex.config
 def config():
     dataset = 'kitti/odom'
     data_folder = '/home/liuzhongze/Downloads/kitti/dataset/'
-    test_sequence = 21
+    test_sequence = 00
     use_prev_output = False
     max_t = 1.5
     max_r = 20.
@@ -89,7 +90,7 @@ def config():
     output = '../output'
     save_image = True
     outlier_filter = True
-    outlier_filter_th = 10
+    outlier_filter_th = 10 #有效点云点数要求
     out_fig_lg = 'EN' # [EN, CN]
 
 weights = [
@@ -116,15 +117,15 @@ def _init_fn(worker_id, seed):
 def get_2D_lidar_projection(pcl, cam_intrinsic):
     pcl_xyz = cam_intrinsic @ pcl.T
     pcl_xyz = pcl_xyz.T
-    pcl_z = pcl_xyz[:, 2]
+    pcl_z = pcl_xyz[:, 2] #点云中各点深度
     pcl_xyz = pcl_xyz / (pcl_xyz[:, 2, None] + 1e-10)
-    pcl_uv = pcl_xyz[:, :2]
+    pcl_uv = pcl_xyz[:, :2] #点云中各点在图像中的坐标
 
     return pcl_uv, pcl_z
 
 
 def lidar_project_depth(pc_rotated, cam_calib, img_shape):
-    pc_rotated = pc_rotated[:3, :].detach().cpu().numpy()
+    pc_rotated = pc_rotated[:3, :].detach().cpu().numpy() # 取出3行n列
     cam_intrinsic = cam_calib.numpy()
     pcl_uv, pcl_z = get_2D_lidar_projection(pc_rotated.T, cam_intrinsic)
     mask = (pcl_uv[:, 0] > 0) & (pcl_uv[:, 0] < img_shape[1]) & (pcl_uv[:, 1] > 0) & (
@@ -132,13 +133,13 @@ def lidar_project_depth(pc_rotated, cam_calib, img_shape):
     pcl_uv = pcl_uv[mask]
     pcl_z = pcl_z[mask]
     pcl_uv = pcl_uv.astype(np.uint32)
-    pcl_z = pcl_z.reshape(-1, 1)
-    depth_img = np.zeros((img_shape[0], img_shape[1], 1))
+    pcl_z = pcl_z.reshape(-1, 1) # reshape为n行1列
+    depth_img = np.zeros((img_shape[0], img_shape[1], 1)) # 深度默认为0
     depth_img[pcl_uv[:, 1], pcl_uv[:, 0]] = pcl_z
     depth_img = torch.from_numpy(depth_img.astype(np.float32))
     depth_img = depth_img.cuda()
-    depth_img = depth_img.permute(2, 0, 1)
-    pc_valid = pc_rotated.T[mask]
+    depth_img = depth_img.permute(2, 0, 1) # shape变为 d， h，  w
+    pc_valid = pc_rotated.T[mask] # 有效点云索引
 
     return depth_img, pcl_uv, pc_valid
 
@@ -167,7 +168,7 @@ def main(_config, seed):
         if isinstance(_config['test_sequence'], int):
             _config['test_sequence'] = f"{_config['test_sequence']:02d}"
         dataset_val = dataset_class(_config['data_folder'], max_r=_config['max_r'], max_t=_config['max_t'],
-                                    split='test', use_reflectance=_config['use_reflectance'],
+                                    split='test', device = 'cuda', use_reflectance=_config['use_reflectance'],
                                     val_sequence=_config['test_sequence'])
 
     np.random.seed(seed)
@@ -180,13 +181,13 @@ def main(_config, seed):
     batch_size = 1
 
     TestImgLoader = torch.utils.data.DataLoader(dataset=dataset_val,
-                                                shuffle=False,
+                                                shuffle=False, # 是否每个epoch重新洗牌
                                                 batch_size=batch_size,
-                                                num_workers=num_worker,
-                                                worker_init_fn=init_fn,
-                                                collate_fn=merge_inputs,
-                                                drop_last=False,
-                                                pin_memory=False)
+                                                num_workers=num_worker, # 用几个线程加载数据
+                                                worker_init_fn=init_fn, # 选择加载方式，自定义seeding
+                                                collate_fn=merge_inputs,# 用于指定如何组合成batch
+                                                drop_last=False, #是否丢弃最后一组不满batch_size的数据
+                                                pin_memory=False) # 将tensor拷贝到cuda的pin-memory
 
     print(len(TestImgLoader))
 
@@ -197,9 +198,9 @@ def main(_config, seed):
             feat = 1
             md = 4
             split = _config['network'].split('_')
-            for item in split[1:]:
+            for item in split[1:]:  # item == f1
                 if item.startswith('f'):
-                    feat = int(item[-1])
+                    feat = int(item[-1]) # feat == 1
                 elif item.startswith('md'):
                     md = int(item[2:])
             assert 0 < feat < 7, "Feature Number from PWC have to be between 1 and 6"
@@ -214,7 +215,7 @@ def main(_config, seed):
         model.load_state_dict(saved_state_dict)
         model = model.to(device)
         model.eval()
-        models.append(model)
+        models.append(model) #初始化了5个模型；
 
 
     if _config['save_log']:
@@ -283,8 +284,8 @@ def main(_config, seed):
         errors_t2.append([])
         errors_rpy.append([])
 
-    for batch_idx, sample in enumerate(tqdm(TestImgLoader)):
-        N = 100 # 500
+    for batch_idx, sample in enumerate(tqdm(TestImgLoader)): # batch_idx为枚举的index， sample是值
+        N = 5 # 500
         # if batch_idx > 200:
         #    break
 
@@ -308,12 +309,12 @@ def main(_config, seed):
             sample['tr_error'] = prev_tr_error
             sample['rot_error'] = prev_rot_error
 
-        for idx in range(len(sample['rgb'])):
+        for idx in range(len(sample['rgb'])): #其实就一帧图像，idx恒等于0
             # ProjectPointCloud in RT-pose
-            real_shape = [sample['rgb'][idx].shape[1], sample['rgb'][idx].shape[2], sample['rgb'][idx].shape[0]]
+            real_shape = [sample['rgb'][idx].shape[1], sample['rgb'][idx].shape[2], sample['rgb'][idx].shape[0]] # real_shape为 HWC
 
             sample['point_cloud'][idx] = sample['point_cloud'][idx].cuda()  # 变换到相机坐标系下的激光雷达点云
-            pc_lidar = sample['point_cloud'][idx].clone()
+            pc_lidar = sample['point_cloud'][idx].clone() # 4行n列，4行分别为x y z intensity
 
             if _config['max_depth'] < 80.:
                 pc_lidar = pc_lidar[:, pc_lidar[0, :] < _config['max_depth']].clone()
@@ -328,20 +329,20 @@ def main(_config, seed):
                 pcl_lidar.points = o3.utility.Vector3dVector(pc_lidar.T[:, :3])
 
                 # o3.draw_geometries(downpcd)
-                o3.io.write_point_cloud(pc_lidar_path + '/{}.pcd'.format(batch_idx), pcl_lidar)
+                o3.io.write_point_cloud(pc_lidar_path + '/{}.pcd'.format(batch_idx), pcl_lidar) # 保存原始点云
 
 
             R = quat2mat(sample['rot_error'][idx])
             T = tvector2mat(sample['tr_error'][idx])
-            RT_inv = torch.mm(T, R)
+            RT_inv = torch.mm(T, R) # T * R
             RT = RT_inv.clone().inverse()
 
-            pc_rotated = rotate_back(sample['point_cloud'][idx], RT_inv)  # Pc` = RT * Pc
+            pc_rotated = rotate_back(sample['point_cloud'][idx], RT_inv)  # Pc` = RT * Pc 添加了RT旋转，将点云转到距离cam系RT的坐标系下
 
             if _config['max_depth'] < 80.:
                 pc_rotated = pc_rotated[:, pc_rotated[0, :] < _config['max_depth']].clone()
 
-            depth_img, uv_input, pc_input_valid = lidar_project_depth(pc_rotated, sample['calib'][idx], real_shape)  # image_shape
+            depth_img, uv_input, pc_input_valid = lidar_project_depth(pc_rotated, sample['calib'][idx], real_shape)  # image_shape # star input!!!
             depth_img /= _config['max_depth']
 
             if _config['outlier_filter'] and uv_input.shape[0] <= _config['outlier_filter_th']:
@@ -357,16 +358,16 @@ def main(_config, seed):
                 B = img[uv_input[:, 1], uv_input[:, 0], 2] / 255
                 pcl_input = o3.geometry.PointCloud()
                 pcl_input.points = o3.utility.Vector3dVector(pc_input_valid[:, :3])
-                pcl_input.colors = o3.utility.Vector3dVector(np.vstack((R, G, B)).T)
+                pcl_input.colors = o3.utility.Vector3dVector(np.vstack((R, G, B)).T) 
 
                 # o3.draw_geometries(downpcd)
-                o3.io.write_point_cloud(pc_input_path + '/{}.pcd'.format(batch_idx), pcl_input)
+                o3.io.write_point_cloud(pc_input_path + '/{}.pcd'.format(batch_idx), pcl_input) # 保存初始化点云，点云被赋予了颜色
 
             # PAD ONLY ON RIGHT AND BOTTOM SIDE
-            rgb = sample['rgb'][idx].cuda()
+            rgb = sample['rgb'][idx].cuda() # CHW(376, 1241)
             shape_pad = [0, 0, 0, 0]
 
-            shape_pad[3] = (img_shape[0] - rgb.shape[1])  # // 2
+            shape_pad[3] = (img_shape[0] - rgb.shape[1])  # // 2     img_shape = (384, 1280)   rgb.shape = (3, 376, 1241)
             shape_pad[1] = (img_shape[1] - rgb.shape[2])  # // 2 + 1
 
             rgb = F.pad(rgb, shape_pad)
@@ -384,9 +385,9 @@ def main(_config, seed):
         if outlier_filter:
             continue
 
-        lidar_input = torch.stack(lidar_input)
+        lidar_input = torch.stack(lidar_input) #沿着一个新维度对输入张量序列进行连接。
         rgb_input = torch.stack(rgb_input)
-        rgb_resize = F.interpolate(rgb_input, size=[256, 512], mode="bilinear")
+        rgb_resize = F.interpolate(rgb_input, size=[256, 512], mode="bilinear") # 从(3, 376, 1241) 转为 (3, 376, 1241)
         lidar_resize = F.interpolate(lidar_input, size=[256, 512], mode="bilinear")
 
 
@@ -424,7 +425,7 @@ def main(_config, seed):
 
         T_composed = RT1[:3, 3]
         R_composed = quaternion_from_matrix(RT1)
-        errors_t[0].append(T_composed.norm().item())
+        errors_t[0].append(T_composed.norm().item()) # item()函数将tensor标量转换为python标量
         errors_t2[0].append(T_composed)
         errors_r[0].append(quaternion_distance(R_composed.unsqueeze(0),
                                                torch.tensor([1., 0., 0., 0.], device=R_composed.device).unsqueeze(0),
@@ -432,12 +433,12 @@ def main(_config, seed):
         # rpy_error = quaternion_to_tait_bryan(R_composed)
         rpy_error = mat2xyzrpy(RT1)[3:]
 
-        rpy_error *= (180.0 / 3.141592)
+        rpy_error *= (180.0 / 3.141592) # 结果为欧拉角角度
         errors_rpy[0].append(rpy_error)
         log_string += [str(errors_t[0][-1]), str(errors_r[0][-1]), str(errors_t2[0][-1][0].item()),
                        str(errors_t2[0][-1][1].item()), str(errors_t2[0][-1][2].item()),
                        str(errors_rpy[0][-1][0].item()), str(errors_rpy[0][-1][1].item()),
-                       str(errors_rpy[0][-1][2].item())]
+                       str(errors_rpy[0][-1][2].item())] # 保存到log_seq{_config["test_sequence"]}.csv'中 TODO(liuzhongze):为什么第一次都是0呢。
 
         # if batch_idx == 0.:
         #     print(f'Initial T_erorr: {errors_t[0]}')
@@ -446,7 +447,7 @@ def main(_config, seed):
         # t1 = time.time()
 
         # Run model
-        with torch.no_grad():
+        with torch.no_grad(): #表明当前计算不需要反向传播，使用之后，强制后边的内容不进行计算图的构建
             for iteration in range(start, len(weights)):
                 # Run the i-th network
                 t1 = time.time()
@@ -525,7 +526,7 @@ def main(_config, seed):
         total_time += run_time
 
         # final calibration error
-        all_RTs.append(RTs[-1])
+        all_RTs.append(RTs[-1]) # 最新的匹配误差
         prev_RT = RTs[-1].inverse()
         prev_tr_error = prev_RT[:3, 3].unsqueeze(0)
         prev_rot_error = quaternion_from_matrix(prev_RT).unsqueeze(0)

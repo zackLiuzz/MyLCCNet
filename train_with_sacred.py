@@ -81,7 +81,7 @@ def config():
 
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 
 EPOCH = 1
@@ -277,14 +277,14 @@ def main(_config, _run, seed):
         assert 0 < md, "md must be positive"
         model = LCCNet(input_size, use_feat_from=feat, md=md,
                          use_reflectance=_config['use_reflectance'], dropout=_config['dropout'],
-                         Action_Func='leakyrelu', attention=False, res_num=18)
+                         Action_Func='leakyrelu', attention=False, res_num=18) # 初始化模型
     else:
         raise TypeError("Network unknown")
     if _config['weights'] is not None:
         print(f"Loading weights from {_config['weights']}")
         checkpoint = torch.load(_config['weights'], map_location='cpu')
         saved_state_dict = checkpoint['state_dict']
-        model.load_state_dict(saved_state_dict)
+        model.load_state_dict(saved_state_dict) # 加载模型参数
 
         # original saved file with DataParallel
         # state_dict = torch.load(model_path)
@@ -298,7 +298,7 @@ def main(_config, _run, seed):
         # model.load_state_dict(new_state_dict)
 
     # model = model.to(device)
-    model = nn.DataParallel(model)
+    model = nn.DataParallel(model) # 针对多gpu数据级并行，并行后整合结果。
     model = model.cuda()
 
     print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
@@ -309,7 +309,7 @@ def main(_config, _run, seed):
     if _config['optimizer'] == 'adam':
         optimizer = optim.Adam(parameters, lr=_config['BASE_LEARNING_RATE'], weight_decay=5e-6)
         # Probably this scheduler is not used
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 50, 70], gamma=0.5)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20, 50, 70], gamma=0.5) #用于调整学习率，在会在milestone的时候乘以gamma的平方，最新pytorch改为乘以gamma
     else:
         optimizer = optim.SGD(parameters, lr=_config['BASE_LEARNING_RATE'], momentum=0.9,
                               weight_decay=5e-6, nesterov=True)
@@ -318,7 +318,7 @@ def main(_config, _run, seed):
     if _config['weights'] is not None and _config['resume']:
         checkpoint = torch.load(_config['weights'], map_location='cpu')
         opt_state_dict = checkpoint['optimizer']
-        optimizer.load_state_dict(opt_state_dict)
+        optimizer.load_state_dict(opt_state_dict) #加载优化器状态以及所使用的超参数的信息
         if starting_epoch != 0:
             starting_epoch = checkpoint['epoch']
 
