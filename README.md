@@ -47,11 +47,13 @@ weights = [
 ```
 5. Run evaluation.
 ```commandline
+cd models/correlation_package/ && python setup.py install
 python evaluate_calib.py
 ```
 
 ## Train
 ```commandline
+cd models/correlation_package/ && python setup.py install
 python train_with_sacred.py
 ```
 
