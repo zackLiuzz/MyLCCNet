@@ -60,7 +60,7 @@ def config():
     loss = 'combined'
     max_t = 1.5 # 1.5, 1.0,  0.5,  0.2,  0.1
     max_r = 20.0 # 20.0, 10.0, 5.0,  2.0,  1.0
-    batch_size = 40  # 120
+    batch_size = 120  # 120
     num_worker = 6
     network = 'Res_f1'
     optimizer = 'adam'
