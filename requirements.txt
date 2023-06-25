@@ -1,5 +1,4 @@
 scikit_image
-git+https://gitlab.com/m1lhaus/blender-mathutils.git
 pandas
 h5py
 matplotlib

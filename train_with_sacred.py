@@ -52,7 +52,7 @@ ex.captured_out_filter = apply_backspaces_and_linefeeds
 def config():
     checkpoints = './checkpoints/'
     dataset = 'kitti/odom' # 'kitti/raw'
-    data_folder = '/home/liuzhongze/Downloads/kitti/dataset/'
+    data_folder = '/root/paddlejob/workspace/env_run/dataset/'
     use_reflectance = False
     val_sequence = 0
     epochs = 120
