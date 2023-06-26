@@ -130,7 +130,9 @@ def train(model, optimizer, rgb_img, refl_img, target_transl, target_rot, loss_f
     optimizer.zero_grad()
 
     # Run model
+    infer_start = time.time()
     transl_err, rot_err = model(rgb_img, refl_img)
+    infer_stop = time.time()
 
     if loss == 'points_distance' or loss == 'combined':
         losses = loss_fn(point_clouds, target_transl, target_rot, transl_err, rot_err)
@@ -139,7 +141,8 @@ def train(model, optimizer, rgb_img, refl_img, target_transl, target_rot, loss_f
 
     losses['total_loss'].backward()
     optimizer.step()
-
+    backward_stop = time.time();
+    print(f'forward once time: {infer_stop - infer_start:.4f} backward once time: {backward_stop - infer_stop:.4f}')
     return losses, rot_err, transl_err
 
 
@@ -367,6 +370,7 @@ def main(_config, _run, seed):
             start_preprocess = time.time()
             for idx in range(len(sample['rgb'])):
                 # ProjectPointCloud in RT-pose
+                
                 real_shape = [sample['rgb'][idx].shape[1], sample['rgb'][idx].shape[2], sample['rgb'][idx].shape[0]]
 
                 sample['point_cloud'][idx] = sample['point_cloud'][idx].cuda() # 变换到相机坐标系下的激光雷达点云
@@ -468,7 +472,7 @@ def main(_config, _run, seed):
 
                 print(f'Iter {batch_idx}/{len(TrainImgLoader)} training loss = {local_loss/50:.3f}, '
                       f'time = {(time.time() - start_time)/lidar_input.shape[0]:.4f}, '
-                      #f'time_preprocess = {(end_preprocess-start_preprocess)/lidar_input.shape[0]:.4f}, '
+                      f'time_preprocess = {(end_preprocess-start_preprocess)/lidar_input.shape[0]:.4f}, '
                       f'time for 50 iter: {time.time()-time_for_50ep:.4f}')
                 time_for_50ep = time.time()
                 _run.log_scalar("Loss", local_loss/50, train_iter)

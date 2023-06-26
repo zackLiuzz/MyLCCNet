@@ -11,6 +11,7 @@
 
 import csv
 import os
+import time
 from math import radians
 import cv2
 
@@ -145,6 +146,7 @@ class DatasetLidarCameraKittiOdometry(Dataset):
         return len(self.all_files) # 返回所有图片的数量
 
     def __getitem__(self, idx): # 重载获取一个图片的方法，即获取一个item的方法
+        read_start_time = time.time()
         item = self.all_files[idx]
         seq = str(item.split('/')[0])
         rgb_name = str(item.split('/')[1])
@@ -258,6 +260,7 @@ class DatasetLidarCameraKittiOdometry(Dataset):
             sample = {'rgb': img, 'point_cloud': pc_in, 'calib': calib,
                       'tr_error': T, 'rot_error': R, 'seq': int(seq),
                       'rgb_name': rgb_name, 'item': item, 'extrin': RT}
+        print(f'read one data time:{time.time() - read_start_time:.4f}')
 
         return sample
 
