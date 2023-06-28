@@ -293,8 +293,8 @@ class LCCNet(nn.Module):
         self.corr = Correlation(pad_size=md, kernel_size=1, max_displacement=md, stride1=1, stride2=1, corr_multiply=1)
         self.leakyRELU = nn.LeakyReLU(0.1)
 
-        nd = (2 * md + 1) ** 2
-        dd = np.cumsum([128, 128, 96, 64, 32])
+        nd = (2 * md + 1) ** 2 # 论文中的d， 2*4 + 1的平方，为81
+        dd = np.cumsum([128, 128, 96, 64, 32]) # 按行累加，输出[128，256， 352，416，448]
 
         od = nd
         self.conv6_0 = myconv(od, 128, kernel_size=3, stride=1)
@@ -495,9 +495,9 @@ class LCCNet(nn.Module):
             c16 = self.layer4_rgb(c15)  # 32
             c26 = self.layer4_lidar(c25)  # 32
 
-        corr6 = self.corr(c16, c26)
+        corr6 = self.corr(c16, c26) # 把二者加了一下？ 对应feature_match layer
         corr6 = self.leakyRELU(corr6)
-        x = torch.cat((self.conv6_0(corr6), corr6), 1)
+        x = torch.cat((self.conv6_0(corr6), corr6), 1) # 沿着原有维度拼接，stack是沿着一个新的维度拼接。
         x = torch.cat((self.conv6_1(x), x), 1)
         x = torch.cat((self.conv6_2(x), x), 1)
         x = torch.cat((self.conv6_3(x), x), 1)

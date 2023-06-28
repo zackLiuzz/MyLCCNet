@@ -26,7 +26,7 @@ class CorrelationFunction(Function):
         self.save_for_backward(input1, input2)
 
         with torch.cuda.device_of(input1):
-            rbot1 = input1.new()
+            rbot1 = input1.new() # 创建一个新的Tensor，该Tensor的type和device都和原有Tensor一致，且无内容。
             rbot2 = input2.new()
             output = input1.new()
 
